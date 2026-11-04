@@ -77,6 +77,7 @@
     if (core.current && core.current.stop) { try { core.current.stop(); } catch (e) { console.error(e); } }
     core.overlay = null;
     core.current = app;
+    LP.launchpad.invalidate();
     core.hudFields = {}; core.hudMsg = '';
     if (app.id !== 'menu') U.store.set('lastApp', app.id);
     try { if (app.start) app.start(api); } catch (e) { console.error(e); }
@@ -144,7 +145,7 @@
     if (core.overlay) { fb.clearGrid(); core.overlay.scroller.render(fb, t); }
     if (a.id !== 'menu') fb.button('top', 7, [120, 120, 120]);
     if (core.testUntil > t) core.testPattern(fb, t);
-    if (t - core.lastFlush > 0.028) { core.lastFlush = t; LP.launchpad.flush(fb); }
+    if (t - core.lastFlush >= LP.launchpad.profile().interval) { core.lastFlush = t; LP.launchpad.flush(fb); }
     if (!document.hidden && t - core.lastDom > 0.025) { core.lastDom = t; LP.display.render(fb); }
   };
 

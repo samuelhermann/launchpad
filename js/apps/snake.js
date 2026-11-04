@@ -129,7 +129,7 @@
     },
 
     render(fb, t) {
-      if (this.food) fb.set(this.food.x, this.food.y, U.scale([255, 0, 0], 0.65 + 0.35 * Math.sin(t * 8)));
+      if (this.food) fb.set(this.food.x, this.food.y, Math.floor(t * 3) % 2 ? [255, 0, 0] : [150, 0, 0]);
       if (this.bonus && (this.bonus.ttl > 1.5 || Math.floor(t * 8) % 2)) fb.set(this.bonus.x, this.bonus.y, [255, 180, 0]);
       const n = this.snake.length;
       this.snake.forEach((s, i) => {

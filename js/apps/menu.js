@@ -36,25 +36,24 @@
         if (!a) {
           for (let j = 0; j < 4; j++) {
             const x = tx + (j % 2), y = ty + (j >> 1);
-            fb.set(x, y, U.hsv(x * 25 + y * 10 + t * 30, 1, 0.08 + 0.06 * Math.sin(t * 2 + x * 0.6)));
+            fb.set(x, y, U.hsv(x * 45 + y * 20, 1, 0.1));
           }
           continue;
         }
-        const icon = typeof a.icon === 'function' ? a.icon(t) : (a.icon || [a.color, a.color, a.color, a.color]);
-        const pulse = 0.7 + 0.3 * Math.sin(t * 2.2 + k * 0.8);
-        for (let j = 0; j < 4; j++) fb.set(tx + (j % 2), ty + (j >> 1), U.scale(icon[j], pulse));
+        const icon = typeof a.icon === 'function' ? a.icon(Math.floor(t * 2) / 2) : (a.icon || [a.color, a.color, a.color, a.color]);
+        for (let j = 0; j < 4; j++) fb.set(tx + (j % 2), ty + (j >> 1), icon[j]);
       }
       if (this.flash) {
         const f = this.flash, k = 1 - f.age / 0.25;
         if (k > 0) fb.rect(f.x, f.y, 2, 2, U.scale([255, 255, 255], k));
       }
-      for (let i = 0; i < 7; i++) fb.button('top', i, U.hsv(t * 60 + i * 45, 1, 0.45));
+      for (let i = 0; i < 7; i++) fb.button('top', i, U.hsv(i * 45, 1, 0.45));
       const b = LP.launchpad.brightness;
       for (let i = 0; i < 8; i++) {
         const lvl = (8 - i) / 8;
         fb.button('right', i, lvl <= b + 0.01 ? U.scale([255, 255, 255], 0.12 + 0.6 * lvl) : [8, 8, 8]);
       }
-      fb.setLogo(U.hsv(t * 60, 1, 1));
+      fb.setLogo(U.hsv(Math.floor(t) * 40, 1, 1));
     },
 
     update(dt) { if (this.flash) { this.flash.age += dt; if (this.flash.age > 0.25) this.flash = null; } },

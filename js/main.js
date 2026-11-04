@@ -86,6 +86,14 @@
     const d = document.getElementById('settings');
     fillSettings();
     if (!d.open) d.showModal();
+    clearInterval(openSettings.t);
+    const tick = () => {
+      const el = document.getElementById('ledStats');
+      if (!d.open || !el) { clearInterval(openSettings.t); return; }
+      el.textContent = L.status === 'connected' ? 'Débit actuel : ' + L.stats.ledsPerSec + ' LED/s (' + L.stats.bytesPerSec + ' octets/s)' : '';
+    };
+    tick();
+    openSettings.t = setInterval(tick, 1000);
   }
 
   function fillSettings() {
@@ -116,6 +124,12 @@
       }
     }
     body.append(LP.ui.range('Luminosité des LED', 0.1, 1, 0.05, L.brightness, (v) => L.setBrightness(v), (v) => Math.round(v * 100) + ' %'));
+    const auto = L.PROFILES[L.autoRate()].name;
+    body.append(LP.ui.select('Vitesse d’envoi des LED', [{ value: 'auto', label: 'Automatique (' + auto + ' pour ce modèle)' }]
+      .concat(Object.keys(L.PROFILES).map((id) => ({ value: id, label: L.PROFILES[id].name }))), L.rate, (v) => L.setRate(v)));
+    body.append(h('p', { class: 'note' }, 'Si les lumières du Launchpad se figent ou ont du retard, choisis « Prudent » ou « Très prudent ».'));
+    const live = h('p', { class: 'note', id: 'ledStats' });
+    body.append(live);
     body.append(LP.ui.buttons([{ label: '🌈 Tester les LED', cls: 'ghost', onClick: () => { core.testUntil = U.now() + 2.5; } }]));
     if (L.lastRaw) body.append(h('p', { class: 'note' }, 'Dernier message reçu : ' + [L.lastRaw.status, L.lastRaw.data1, L.lastRaw.data2].join(' ')));
     body.append(h('h3', null, 'Son'));

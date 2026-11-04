@@ -79,6 +79,7 @@ Les records sont sauvegardés dans le navigateur.
 
 - **« Aucun Launchpad détecté »** : vérifie le câble USB (certains câbles ne font que charger). Ferme aussi **Ableton Live** et **Novation Components**, qui peuvent occuper le Launchpad. Il est détecté automatiquement dès qu'il est branché.
 - **Les LED ne s'allument pas** : l'autorisation MIDI a peut-être été refusée. Clique sur le cadenas à gauche de l'adresse, puis **Paramètres du site → Appareils MIDI → Autoriser**, et recharge la page.
+- **Lumières figées ou en retard** : ouvre **Réglages**, puis **Vitesse d'envoi des LED** → « Prudent » ou « Très prudent ». Le mode Prudent est déjà choisi automatiquement pour les Launchpad MK2 et Pro (2015), qui acceptent moins de messages par seconde.
 - **Mauvais modèle ou boutons décalés** : **Réglages** → choisis la sortie, l'entrée et le modèle à la main.
 - **Pas de son** : clique une fois dans la page (Chrome bloque le son tant qu'on n'a pas interagi avec la page) et vérifie le volume 🔊 en haut.
 - **Firmware** : en cas de souci, mets ton Launchpad à jour avec [Novation Components](https://components.novationmusic.com/).

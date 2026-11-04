@@ -24,8 +24,19 @@ const MODELS = [
 function mockScript(ports) {
   return `(() => {
     window.__sent = [];
+    window.__dev = {};   // état simulé des LED du Launchpad
+    window.__drop = 0;   // probabilité de perdre un message (simulation d'un Launchpad saturé)
+    const apply = (d) => {
+      if (d[0] !== 0xF0 || d[1] !== 0x00 || d[2] !== 0x20 || d[3] !== 0x29) return;
+      if (d[6] === 0x0B) for (let i = 7; i + 3 < d.length; i += 4) window.__dev[d[i]] = [d[i + 1], d[i + 2], d[i + 3]];
+      if (d[6] === 0x03) for (let i = 7; i + 4 < d.length; i += 5) if (d[i] === 3) window.__dev[d[i + 1]] = [d[i + 2], d[i + 3], d[i + 4]];
+    };
     const mk = (id, name, type) => ({ id, name, type, manufacturer: 'Focusrite - Novation', state: 'connected', connection: 'open',
-      onmidimessage: null, send(d) { if (type === 'output') window.__sent.push({ port: name, data: Array.from(d) }); },
+      onmidimessage: null, send(d) {
+        if (type !== 'output') return;
+        window.__sent.push({ port: name, data: Array.from(d) });
+        if (Math.random() >= window.__drop) apply(d);
+      },
       open() { return Promise.resolve(this); }, close() {}, addEventListener() {} });
     const names = ${JSON.stringify(ports)};
     const outs = new Map(), ins = new Map();
@@ -168,6 +179,57 @@ const check = (cond, msg) => { if (cond) console.log('  ✓ ' + msg); else { fai
   check(exitMsg.some((d) => d[6] === 0x0E && d[7] === 0x00), 'Sortie du mode Programmer envoyée');
 
   check(errors.length === 0, 'Aucune erreur JavaScript' + (errors.length ? ' : ' + errors.slice(0, 5).join(' | ') : ''));
+
+  /* 6. Launchpad MK2 : débit plafonné et lumières toujours justes, même avec des messages perdus */
+  console.log('Launchpad MK2 (débit) :');
+  {
+    const p2 = await browser.newPage();
+    const errs = [];
+    p2.on('pageerror', (e) => errs.push(String(e)));
+    await p2.addInitScript(mockScript(['Launchpad MK2']));
+    await p2.goto(URL);
+    await p2.click('#btnStart');
+    await sleep(300);
+    // Animation lourde (plasma plein écran) pendant 2 s
+    const heavy = await p2.evaluate(async () => {
+      LP.core.launch('lightshow');
+      LP.core.current.setMode(4);
+      await new Promise((r) => setTimeout(r, 300));
+      const n0 = window.__sent.length;
+      const t0 = performance.now();
+      await new Promise((r) => setTimeout(r, 2000));
+      const msgs = window.__sent.slice(n0).map((s) => s.data).filter((d) => d[6] === 0x0B);
+      const leds = msgs.reduce((a, d) => a + (d.length - 8) / 4, 0);
+      const secs = (performance.now() - t0) / 1000;
+      return { perSec: Math.round(leds / secs), maxPerMsg: Math.max(...msgs.map((d) => (d.length - 8) / 4)), msgsPerSec: Math.round(msgs.length / secs) };
+    });
+    check(heavy.maxPerMsg <= 20 && heavy.perSec <= 400, `plasma plein écran : ${heavy.perSec} LED/s, ${heavy.msgsPerSec} messages/s, max ${heavy.maxPerMsg} LED par message (plafond « Prudent »)`);
+
+    const compare = () => p2.evaluate(() => {
+      const L = LP.launchpad, fb = LP.core.fb, k = L.brightness * 63 / 255;
+      const conv = (c) => c.map((v) => Math.max(0, Math.min(63, Math.round(v * k))));
+      let bad = 0, total = 0;
+      const test = (led, c) => { total++; const e = conv(c), d = window.__dev[led] || [0, 0, 0]; if (e[0] !== d[0] || e[1] !== d[1] || e[2] !== d[2]) bad++; };
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) test((8 - y) * 10 + x + 1, fb.grid[y * 8 + x]);
+      for (let i = 0; i < 8; i++) { test(L.ledOf['top' + i], fb.btn.top[i]); test(L.ledOf['right' + i], fb.btn.right[i]); }
+      return { bad, total };
+    });
+    // Changement de jeu (comme dans la liste à gauche) : les lumières doivent suivre
+    await p2.evaluate(() => LP.core.launch('connect4'));
+    await sleep(700);
+    const sw = await compare();
+    check(sw.bad === 0, `après changement de jeu : ${sw.total - sw.bad}/${sw.total} LED correctes`);
+    // 40 % de messages perdus pendant un changement de jeu, puis l'auto-réparation doit tout rattraper
+    await p2.evaluate(() => { window.__drop = 0.4; LP.core.launch('mempairs'); });
+    await sleep(800);
+    const lossy = await compare();
+    await p2.evaluate(() => { window.__drop = 0; });
+    await sleep(6000);
+    const healed = await compare();
+    check(lossy.bad > 0 && healed.bad === 0, `messages perdus : ${lossy.bad} LED fausses, puis ${healed.bad} après auto-réparation`);
+    check(errs.length === 0, 'MK2 : aucune erreur JavaScript' + (errs.length ? ' : ' + errs.join(' | ') : ''));
+    await p2.close();
+  }
 
   // Vue téléphone
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });

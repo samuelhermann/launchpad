@@ -91,7 +91,7 @@
         const c = this.zoneColor(z);
         let k;
         if (this.lit[z] !== undefined) k = 1;
-        else if (this.state === 'ready') k = 0.12 + 0.08 * Math.sin(t * 2 + z);
+        else if (this.state === 'ready') k = 0.12 + 0.08 * Math.sin(Math.floor(t * 6) / 3 + z);
         else if (this.state === 'show') k = 0.05;
         else k = 0.13;
         let col = U.scale(c, k);

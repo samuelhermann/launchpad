@@ -47,7 +47,8 @@
 
     toggleStep(tr, step, vel) {
       const p = T.drums.pattern[tr];
-      p[step] = p[step] ? 0 : (vel > 110 ? 2 : 1);
+      const m = LP.launchpad.model;
+      p[step] = p[step] ? 0 : (vel > 110 && m && m.velocity ? 2 : 1);
       if (p[step] && !T.playing) A.drum(tr, 0, T.drums.vol[tr]);
       T.save();
     },

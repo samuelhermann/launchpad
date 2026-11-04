@@ -198,7 +198,8 @@
     const row = Math.floor(n / 10), col = n % 10;
     let ev = null;
     if (st !== 0xB0 && row >= 1 && row <= 8 && col >= 1 && col <= 8) {
-      ev = { type: 'pad', x: col - 1, y: 8 - row, vel: down ? v : 0, down };
+      const vel = down ? (L.model && L.model.velocity === false ? 100 : v) : 0;
+      ev = { type: 'pad', x: col - 1, y: 8 - row, vel, down };
     } else if (L.btnMap[n]) {
       ev = { type: 'button', side: L.btnMap[n].side, i: L.btnMap[n].i, vel: v, down };
     }
@@ -214,36 +215,100 @@
     L.emit('brightness', L.brightness);
   };
 
-  /* Envoie le framebuffer : seulement les LED qui ont changé */
+  /*
+   * Débit d'envoi des LED. Les Launchpad (surtout les anciens : MK2, Pro 2015)
+   * ne digèrent qu'un nombre limité de messages par seconde : au-delà, les
+   * messages s'accumulent ou se perdent et les lumières se figent.
+   * On plafonne donc le nombre de LED envoyées à chaque envoi.
+   */
+  const PROFILES = {
+    fast: { name: 'Rapide', interval: 0.025, cap: 80 },
+    normal: { name: 'Normal', interval: 0.04, cap: 40 },
+    safe: { name: 'Prudent', interval: 0.06, cap: 20 },
+    slow: { name: 'Très prudent', interval: 0.1, cap: 12 }
+  };
+  L.PROFILES = PROFILES;
+  L.rate = U.store.get('ledRate', 'auto');
+  L.autoRate = () => (L.model && L.model.proto === 'legacy' ? 'safe' : 'normal');
+  L.profile = () => PROFILES[L.rate !== 'auto' && PROFILES[L.rate] ? L.rate : L.autoRate()];
+  L.setRate = function (r) { L.rate = r; U.store.set('ledRate', r); L.invalidate(); L.emit('rate', r); };
+
+  /* Force un redessin complet (progressif) du Launchpad */
+  L.invalidate = function () {
+    L.cache.clear();
+    if (L.out && typeof L.out.clear === 'function') { try { L.out.clear(); } catch (e) { /* non supporté */ } }
+  };
+
+  L.stats = { leds: 0, msgs: 0, bytes: 0, t0: 0, ledsPerSec: 0, bytesPerSec: 0 };
+  const all = []; // [led, r, g, b] réutilisés
+  let rr = 0, heal = 0;
+
+  /* Envoie le framebuffer : seulement les LED qui ont changé, dans la limite du plafond */
   L.flush = function (fb) {
     if (L.status !== 'connected') return;
     const m = L.model;
     const max = m.proto === 'mk3' ? 127 : 63;
     const k = L.brightness * max / 255;
-    const changes = [];
-    const push = (led, c) => {
-      const r = U.clamp(Math.round(c[0] * k), 0, max);
-      const g = U.clamp(Math.round(c[1] * k), 0, max);
-      const b = U.clamp(Math.round(c[2] * k), 0, max);
-      const key = (r << 16) | (g << 8) | b;
-      if (L.cache.get(led) !== key) { L.cache.set(led, key); changes.push(led, r, g, b); }
+    let n = 0;
+    const put = (led, c) => {
+      let e = all[n];
+      if (!e) e = all[n] = [0, 0, 0, 0];
+      e[0] = led;
+      e[1] = U.clamp(Math.round(c[0] * k), 0, max);
+      e[2] = U.clamp(Math.round(c[1] * k), 0, max);
+      e[3] = U.clamp(Math.round(c[2] * k), 0, max);
+      n++;
     };
-    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) push((8 - y) * 10 + x + 1, fb.grid[y * 8 + x]);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) put((8 - y) * 10 + x + 1, fb.grid[y * 8 + x]);
     for (const side of SIDES) {
       const arr = fb.btn[side];
       for (let i = 0; i < 8; i++) {
         const led = L.ledOf[side + i];
-        if (led !== undefined) push(led, arr[i]);
+        if (led !== undefined) put(led, arr[i]);
       }
     }
-    if (m.logo) push(99, fb.logo);
-    if (changes.length) L.sendLeds(changes);
+    if (m.logo) put(99, fb.logo);
+
+    const keyOf = (e) => (e[1] << 16) | (e[2] << 8) | e[3];
+    const changed = [];
+    for (let i = 0; i < n; i++) if (L.cache.get(all[i][0]) !== keyOf(all[i])) changed.push(i);
+
+    const cap = L.profile().cap;
+    let pick;
+    if (changed.length <= cap) pick = changed;
+    else {
+      // Trop de changements : on en envoie "cap", en tournant pour que chaque LED ait son tour
+      pick = [];
+      const start = rr % changed.length;
+      for (let j = 0; j < cap; j++) pick.push(changed[(start + j) % changed.length]);
+      rr += cap;
+    }
+    // Auto-réparation : renvoie aussi une LED inchangée à chaque fois (rattrape un message perdu)
+    if (pick.length < cap && n) {
+      heal = (heal + 1) % n;
+      if (pick.indexOf(heal) < 0) pick = pick.concat([heal]);
+    }
+    if (!pick.length) return;
+    const out = [];
+    for (const i of pick) { const e = all[i]; L.cache.set(e[0], keyOf(e)); out.push(e[0], e[1], e[2], e[3]); }
+    L.sendLeds(out);
+  };
+
+  L.countStats = function (leds, bytes) {
+    const s = L.stats, now = U.now();
+    if (!s.t0) s.t0 = now;
+    s.leds += leds; s.bytes += bytes; s.msgs++;
+    if (now - s.t0 >= 1) {
+      s.ledsPerSec = Math.round(s.leds / (now - s.t0));
+      s.bytesPerSec = Math.round(s.bytes / (now - s.t0));
+      s.leds = 0; s.bytes = 0; s.msgs = 0; s.t0 = now;
+    }
   };
 
   /* arr = [led, r, g, b, led, r, g, b, ...] (valeurs déjà converties) */
   L.sendLeds = function (arr) {
     const m = L.model;
-    const per = m.proto === 'mk3' ? 80 : 78;
+    const per = Math.min(m.proto === 'mk3' ? 80 : 78, L.profile().cap);
     for (let s = 0; s < arr.length; s += per * 4) {
       const body = [m.proto === 'mk3' ? 0x03 : 0x0B];
       const end = Math.min(arr.length, s + per * 4);
@@ -252,6 +317,7 @@
         else body.push(arr[j], arr[j + 1], arr[j + 2], arr[j + 3]);
       }
       L.sysex(body);
+      L.countStats((end - s) / 4, body.length + 7);
     }
   };
 

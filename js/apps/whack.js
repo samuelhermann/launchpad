@@ -38,7 +38,7 @@
       this.api.hud(f, this.state === 'ready' ? 'Touche un pad pour lancer la partie.' : '');
     },
 
-    begin() { this.state = 'count'; this.count = 3; this.countT = 0; LP.audio.sfx.tick(); },
+    begin() { this.state = 'count'; this.count = 3; this.countT = 0; LP.audio.sfx.tick(); this.hud(); },
 
     spawn() {
       const occupied = new Set(this.moles.map((m) => m.x + m.y * 8));
@@ -121,7 +121,7 @@
     render(fb, t) {
       if (this.state === 'ready') {
         for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-          const k = Math.max(0, Math.sin(t * 3 + x * 1.7 + y * 2.3));
+          const k = Math.max(0, Math.sin(Math.floor(t * 6) / 2 + x * 1.7 + y * 2.3));
           fb.set(x, y, U.scale([0, 255, 70], 0.04 + 0.12 * k * k));
         }
       }
