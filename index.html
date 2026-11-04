@@ -12,6 +12,7 @@
     <div class="brand"><span class="logo"><i></i><i></i><i></i><i></i></span>Launchpad Arcade</div>
     <button class="status" id="midiStatus" data-state="idle" title="Réglages MIDI"><span class="dot"></span><span class="label">MIDI inactif</span></button>
     <div class="spacer"></div>
+    <button id="btnPomo" class="pomo hidden" title="Pomodoro">🍅 25:00</button>
     <button id="btnTransport" class="transport hidden">■ Arrêter la musique</button>
     <label class="vol" title="Volume">🔊<input type="range" id="masterVol" min="0" max="1" step="0.01"></label>
     <button id="btnFull" class="ghost icon" title="Plein écran">⛶</button>
@@ -56,6 +57,9 @@
   <script src="js/core/display.js"></script>
   <script src="js/core/audio.js"></script>
   <script src="js/core/transport.js"></script>
+  <script src="js/core/audioin.js"></script>
+  <script src="js/core/bridges.js"></script>
+  <script src="js/core/store-db.js"></script>
   <script src="js/core/app.js"></script>
   <script src="js/apps/menu.js"></script>
   <script src="js/apps/snake.js"></script>
@@ -69,7 +73,12 @@
   <script src="js/apps/keys.js"></script>
   <script src="js/apps/melody.js"></script>
   <script src="js/apps/lightshow.js"></script>
+  <script src="js/apps/visualizer.js"></script>
+  <script src="js/apps/sampler.js"></script>
   <script src="js/apps/paint.js"></script>
+  <script src="js/apps/pomodoro.js"></script>
+  <script src="js/apps/streamdeck.js"></script>
+  <script src="js/apps/demo.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

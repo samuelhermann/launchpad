@@ -46,8 +46,10 @@
     lastFlush: 0,
     lastDom: 0,
     testUntil: 0,
-    started: false
+    started: false,
+    bg: []
   };
+  core.addBackground = (fn) => core.bg.push(fn);
 
   const api = core.api = {
     U,
@@ -131,6 +133,7 @@
     core.lastT = t;
     if (dt > 0.1) dt = 0.1;
     LP.transport.schedule();
+    for (const f of core.bg) { try { f(dt, t); } catch (e) { console.error(e); } }
     const a = core.current;
     if (!a) return;
     try { if (a.update) a.update(dt, t); } catch (e) { console.error(e); }
@@ -187,7 +190,7 @@
   };
 
   /* ---------- Barre latérale & panneau ---------- */
-  const CATS = [['jeu', 'Jeux'], ['musique', 'Musique'], ['outil', 'Outils']];
+  const CATS = LP.CATS = [['jeu', 'Jeux'], ['musique', 'Musique'], ['outil', 'Outils']];
   core.buildSidebar = function () {
     const nav = document.getElementById('sidebar');
     nav.innerHTML = '';
