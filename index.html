@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Launchpad Arcade</title>
+  <meta name="description" content="Jeux et musique pour Launchpad Novation RGB, dans le navigateur (Web MIDI).">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-app="menu">
+  <header class="topbar">
+    <div class="brand"><span class="logo"><i></i><i></i><i></i><i></i></span>Launchpad Arcade</div>
+    <button class="status" id="midiStatus" data-state="idle" title="Réglages MIDI"><span class="dot"></span><span class="label">MIDI inactif</span></button>
+    <div class="spacer"></div>
+    <button id="btnTransport" class="transport hidden">■ Arrêter la musique</button>
+    <label class="vol" title="Volume">🔊<input type="range" id="masterVol" min="0" max="1" step="0.01"></label>
+    <button id="btnFull" class="ghost icon" title="Plein écran">⛶</button>
+    <button id="btnSettings" class="ghost">Réglages</button>
+  </header>
+
+  <main class="layout">
+    <nav id="sidebar" aria-label="Applications"></nav>
+    <section id="stage">
+      <div id="hud"></div>
+      <div id="device"></div>
+    </section>
+    <aside id="panel"></aside>
+  </main>
+
+  <div id="startOverlay" class="overlay">
+    <div class="card">
+      <div class="big-logo"><i></i><i></i><i></i><i></i></div>
+      <h1>Launchpad Arcade</h1>
+      <p>Jeux et instruments pour ton Launchpad Novation.</p>
+      <ol>
+        <li>Branche ton Launchpad en USB.</li>
+        <li>Clique sur <b>Démarrer</b>.</li>
+        <li>Chrome demande l'accès aux appareils MIDI : clique sur <b>Autoriser</b>.</li>
+      </ol>
+      <p id="browserWarn" class="warn" hidden></p>
+      <button id="btnStart" class="primary">▶ Démarrer</button>
+      <p class="small">Pas de Launchpad ? Tout fonctionne aussi à la souris sur le Launchpad virtuel.</p>
+    </div>
+  </div>
+
+  <dialog id="settings">
+    <form method="dialog" class="dlg-head"><h2>Réglages</h2><button class="ghost icon" aria-label="Fermer">✕</button></form>
+    <div id="settingsBody"></div>
+  </dialog>
+
+  <div id="toast" role="status"></div>
+
+  <script src="js/core/util.js"></script>
+  <script src="js/core/font.js"></script>
+  <script src="js/core/launchpad.js"></script>
+  <script src="js/core/display.js"></script>
+  <script src="js/core/audio.js"></script>
+  <script src="js/core/transport.js"></script>
+  <script src="js/core/app.js"></script>
+  <script src="js/apps/menu.js"></script>
+  <script src="js/apps/snake.js"></script>
+  <script src="js/apps/memory-seq.js"></script>
+  <script src="js/apps/memory-pairs.js"></script>
+  <script src="js/apps/whack.js"></script>
+  <script src="js/apps/connect4.js"></script>
+  <script src="js/apps/breakout.js"></script>
+  <script src="js/apps/lightsout.js"></script>
+  <script src="js/apps/drums.js"></script>
+  <script src="js/apps/keys.js"></script>
+  <script src="js/apps/melody.js"></script>
+  <script src="js/apps/lightshow.js"></script>
+  <script src="js/apps/paint.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
