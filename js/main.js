@@ -130,7 +130,11 @@
     body.append(h('p', { class: 'note' }, 'Si les lumières du Launchpad se figent ou ont du retard, choisis « Prudent » ou « Très prudent ».'));
     const live = h('p', { class: 'note', id: 'ledStats' });
     body.append(live);
-    body.append(LP.ui.buttons([{ label: '🌈 Tester les LED', cls: 'ghost', onClick: () => { core.testUntil = U.now() + 2.5; } }]));
+    body.append(LP.ui.buttons([
+      { label: '🔄 Reconnecter le Launchpad', cls: 'ghost', onClick: () => { L.reconnect(); core.toast('Launchpad reconnecté'); } },
+      { label: '🌈 Tester les LED', cls: 'ghost', onClick: () => { core.testUntil = U.now() + 2.5; } }
+    ]));
+    body.append(h('p', { class: 'note' }, 'Si le Launchpad ne répond plus du tout, débranche-le puis rebranche-le : il est reconnecté automatiquement.'));
     if (L.lastRaw) body.append(h('p', { class: 'note' }, 'Dernier message reçu : ' + [L.lastRaw.status, L.lastRaw.data1, L.lastRaw.data2].join(' ')));
     body.append(h('h3', null, 'Son'));
     body.append(LP.ui.range('Réverbération', 0, 1, 0.05, A.reverbLevel, (v) => A.setReverb(v), (v) => Math.round(v * 100) + ' %'));

@@ -1,0 +1,13 @@
+{
+  "name": "launchpad-arcade",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jeux et musique pour Launchpad Novation RGB dans le navigateur (Web MIDI)",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node tests/smoke.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

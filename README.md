@@ -91,4 +91,6 @@ Les records sont sauvegardés dans le navigateur.
 - `js/core/audio.js` : batterie et synthé générés en Web Audio (aucun fichier son).
 - `js/core/transport.js` : horloge commune aux séquenceurs (programmation précise sur l'horloge audio).
 - `js/apps/*.js` : une appli par fichier. Pour en ajouter une, appelle `LP.apps.register({...})` et ajoute la balise `<script>` dans `index.html`.
-- Test automatique avec un Launchpad simulé : `node tests/smoke.js` (nécessite Playwright).
+- Test automatique avec un Launchpad simulé : `npm install`, `npx playwright install chromium`, puis `npm test`.
+- **Mode debug** : ajoute `?debug` à l'adresse de la page pour afficher tous les messages MIDI dans la console de Chrome (Cmd+Option+J).
+- Pour continuer le développement avec Claude Code, lis `CLAUDE.md` (architecture, protocole MIDI, problèmes connus).

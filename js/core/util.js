@@ -102,7 +102,10 @@ window.LP = window.LP || {};
   /* Petit système d'événements */
   U.emitter = function (obj) {
     const map = {};
-    obj.on = (ev, fn) => { (map[ev] = map[ev] || []).push(fn); };
+    obj.on = (ev, fn) => {
+      (map[ev] = map[ev] || []).push(fn);
+      return () => { const a = map[ev], i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); };
+    };
     obj.emit = (ev, data) => { (map[ev] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } }); };
     return obj;
   };

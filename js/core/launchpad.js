@@ -39,6 +39,11 @@
     onInput: null
   });
 
+  /* Mode debug : ajouter ?debug à l'adresse de la page -> journal MIDI dans la console de Chrome */
+  L.debug = /[?&]debug\b/.test(location.search);
+  const hex = (d) => Array.from(d, (b) => b.toString(16).padStart(2, '0')).join(' ');
+  L.log = function () { if (L.debug) console.log.apply(console, ['%c[MIDI]', 'color:#22d3ee'].concat([].slice.call(arguments))); };
+
   L.statusText = function () {
     switch (L.status) {
       case 'unsupported': return 'Web MIDI indisponible : utilise Google Chrome';
@@ -61,7 +66,13 @@
       L.setStatus('denied');
       return;
     }
-    L.access.onstatechange = () => { clearTimeout(L._scanT); L._scanT = setTimeout(L.scan, 250); };
+    L.access.onstatechange = (e) => {
+      L.log('changement de port :', e && e.port && (e.port.type + ' « ' + e.port.name + ' » ' + e.port.state));
+      clearTimeout(L._scanT); L._scanT = setTimeout(L.scan, 250);
+    };
+    const p = L.ports();
+    L.log('ports de sortie :', p.outputs.map((o) => o.name).join(' | ') || '(aucun)');
+    L.log('ports d’entrée :', p.inputs.map((o) => o.name).join(' | ') || '(aucun)');
     L.scan();
   };
 
@@ -117,6 +128,7 @@
   L.connect = function (out, inp, model) {
     L.out = out; L.inp = inp; L.model = model;
     inp.onmidimessage = (e) => L.handle(e.data);
+    L.log('connecté :', model.name, '| sortie « ' + out.name + ' » | entrée « ' + inp.name + ' » | débit', L.profile().name);
     L.buildMaps();
     L.cache.clear();
     L.enter();
@@ -137,6 +149,14 @@
     L.scan();
   };
 
+  /* Reconnexion : ré-envoie le mode Programmer et redessine tout */
+  L.reconnect = function () {
+    if (!L.access) return;
+    L.log('reconnexion demandée');
+    L.disconnect(); L.status = 'idle';
+    L.scan();
+  };
+
   L.useAuto = function () {
     L.manual = null;
     U.store.set('midiManual', null);
@@ -147,6 +167,7 @@
 
   L.send = function (data) {
     if (!L.out) return;
+    if (L.debug) L.log('→ envoi', data.length + ' octets :', hex(data.slice(0, 24)) + (data.length > 24 ? ' …' : ''));
     try { L.out.send(data); } catch (e) { console.warn('MIDI send', e); }
   };
 
@@ -191,9 +212,10 @@
 
   /* Messages entrants -> événements {type:'pad'|'button', ...} */
   L.handle = function (d) {
-    if (!d || d.length < 3 || d[0] >= 0xF0) return;
+    if (!d || !d.length) return;
+    if (d.length < 3 || d[0] >= 0xF0) { if (d[0] !== 0xF8 && d[0] !== 0xFE) L.log('← reçu (ignoré)', hex(d)); return; }
     const st = d[0] & 0xF0, n = d[1], v = d[2];
-    if (st !== 0x90 && st !== 0x80 && st !== 0xB0) return;
+    if (st !== 0x90 && st !== 0x80 && st !== 0xB0) { L.log('← reçu (ignoré)', hex(d)); return; }
     const down = st !== 0x80 && v > 0;
     const row = Math.floor(n / 10), col = n % 10;
     let ev = null;
@@ -204,6 +226,7 @@
       ev = { type: 'button', side: L.btnMap[n].side, i: L.btnMap[n].i, vel: v, down };
     }
     L.lastRaw = { status: d[0], data1: n, data2: v };
+    L.log('← reçu', hex(d), ev ? JSON.stringify(ev) : '(message non reconnu)');
     L.emit('raw', L.lastRaw);
     if (ev && L.onInput) L.onInput(ev);
   };
