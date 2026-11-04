@@ -252,6 +252,20 @@ const check = (cond, msg) => { if (cond) console.log('  ✓ ' + msg); else { fai
     smp.play(4);
     out.sampler = { harder: !!smp.buf[4], others: smp.buf.filter(Boolean).length, playing: !!smp.playing[4] };
     await smp.clearSample(4);
+    // Musique de fond : clics à 97 BPM -> tempo détecté, lecture, mots calés sur ses temps
+    const BG = LP.backing, sr = 22050, secs = 12, beat = 60 / 97;
+    const wav = new ArrayBuffer(44 + sr * secs * 2), w = new DataView(wav);
+    const ws = (o, s) => { for (let i = 0; i < s.length; i++) w.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); w.setUint32(4, 36 + sr * secs * 2, true); ws(8, 'WAVE'); ws(12, 'fmt '); w.setUint32(16, 16, true); w.setUint16(20, 1, true); w.setUint16(22, 1, true);
+    w.setUint32(24, sr, true); w.setUint32(28, sr * 2, true); w.setUint16(32, 2, true); w.setUint16(34, 16, true); ws(36, 'data'); w.setUint32(40, sr * secs * 2, true);
+    for (let i = 0; i < sr * secs; i++) { const tt = (i / sr - 0.2) % beat; w.setInt16(44 + i * 2, tt >= 0 && tt < 0.03 ? Math.sin(i * 0.9) * 20000 * (1 - tt / 0.03) : 0, true); }
+    await BG.loadBlob(new Blob([wav], { type: 'audio/wav' }), 'clics.wav');
+    BG.play();
+    await wait(300);
+    const now = LP.audio.ctx.currentTime, g = BG.nextGrid(now, true);
+    const phaseAtGrid = (((BG.startPos + (g - BG.startCtx) - 0.2) / beat) % 1 + 1) % 1;
+    out.bg = { bpm: BG.bpm, playing: BG.playing, offsetOk: Math.min(phaseAtGrid, 1 - phaseAtGrid) < 0.06 };
+    await BG.remove();
     // Animations : chaque animation tourne sans erreur
     LP.core.launch('demo');
     const demo = LP.core.current;
@@ -271,6 +285,7 @@ const check = (cond, msg) => { if (cond) console.log('  ✓ ' + msg); else { fai
     'OBS : connexion, scènes, état du live et du micro récupérés');
   check(extra.obs.last && extra.obs.last.requestType === 'SetCurrentProgramScene' && extra.obs.last.requestData.sceneName === 'Pause', 'OBS : le bouton change bien de scène');
   check(extra.sampler.harder && extra.sampler.others === 1 && extra.sampler.playing, 'Sampler : « Harder.wav » rangé sous « Harder » et joué');
+  check(Math.abs(extra.bg.bpm - 97) < 1 && extra.bg.playing && extra.bg.offsetOk, 'Musique de fond : tempo détecté ' + extra.bg.bpm + ' BPM (attendu 97), lecture et calage sur les temps');
   check(extra.anims === 12, 'Animations : les 12 animations tournent');
 
   check(errors.length === 0, 'Aucune erreur JavaScript' + (errors.length ? ' : ' + errors.slice(0, 5).join(' | ') : ''));

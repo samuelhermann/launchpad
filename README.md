@@ -72,7 +72,7 @@ Les records sont sauvegardés dans le navigateur.
 | 🎼 **Séquenceur mélodique** | Dessine une mélodie et une ligne de basse qui tournent en boucle, calées sur la boîte à rythmes. |
 | ✨ **Light show** | 8 animations (spectre, ondes, pluie, plasma, feux d'artifice, étoiles, texte défilant) qui réagissent aux sons de l'appli, au micro ou à un fichier MP3. |
 | 🎶 **Visualiseur** | 8 visualisations (égaliseur, spectrogramme, oscilloscope, VU-mètre stéréo…) de la musique d'un **onglet Chrome** (YouTube, Spotify Web, Deezer…), de l'**appli Spotify / Musique** (via BlackHole), du micro ou d'un fichier. Le gain est automatique et le tempo estimé. |
-| 🤖 **Sampler 16 mots** | Inspiré d'iDaft : 16 tuiles qui jouent chacune un mot. Tu déposes **tes propres sons** ou tu enregistres ta voix, avec un **effet robot** (vocodeur). Le jeu peut être calé sur le tempo, avec un rythme d'accompagnement. Sans son, les tuiles parlent avec une voix de synthèse. |
+| 🤖 **Sampler 16 mots** | Inspiré d'iDaft : 16 tuiles qui jouent chacune un mot. Tu déposes **tes propres sons** ou tu enregistres ta voix, avec un **effet robot** (vocodeur). Une **musique de fond** (par exemple l'instrumental) peut tourner en boucle : son tempo est détecté automatiquement, les mots se calent sur ses temps, et on peut l'ajuster avec « Tap ». Sans son, les tuiles parlent avec une voix de synthèse. |
 
 ## 🧰 Outils
 

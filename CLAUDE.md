@@ -34,6 +34,7 @@ Pas de modules ES ni de bundler : tout est attaché à `window.LP` pour fonction
 | `js/core/transport.js` | `LP.music` (gammes, tonalité partagée), `LP.transport` (horloge des séquenceurs, motifs sauvegardés) |
 | `js/core/audioin.js` | `LP.audioin` : sources audio partagées (sons de l'appli, onglet Chrome via `getDisplayMedia`, BlackHole/micro via `getUserMedia`, fichier) + analyse (8 bandes avec gain auto, battements/tempo, VU stéréo, forme d'onde). `AI.panel()` = panneau de choix de source |
 | `js/core/bridges.js` | `LP.hammer` (pont HTTP local vers Hammerspoon, jeton secret, code Lua généré par `HS.lua()`), `LP.obs` (client OBS WebSocket v5 avec authentification SHA-256) |
+| `LP.backing` (dans `js/apps/sampler.js`) | Musique de fond du sampler : lecture en boucle, détection du tempo (`detectTempo`, autocorrélation des attaques), `nextGrid()` pour caler les sons, `tap()`. Le bouton d'arrêt de l'en-tête la coupe aussi |
 | `js/core/store-db.js` | `LP.db` : stockage IndexedDB (sons du sampler) |
 | `js/core/app.js` | `LP.apps.register`, `LP.core` (boucle ~60 Hz dans un Worker, routage des entrées, HUD, panneau), `LP.ui` (contrôles) |
 | `js/main.js` | Démarrage, écran d'accueil, fenêtre Réglages |

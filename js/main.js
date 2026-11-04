@@ -43,11 +43,14 @@
 
     // Indicateur séquenceur
     const tb = document.getElementById('btnTransport');
-    T.on('change', () => {
-      tb.classList.toggle('hidden', !T.playing);
-      tb.textContent = '■ Arrêter la musique (' + T.bpm + ' BPM)';
-    });
-    tb.addEventListener('click', () => T.stop());
+    const updTb = () => {
+      const bg = LP.backing && LP.backing.playing;
+      tb.classList.toggle('hidden', !T.playing && !bg);
+      tb.textContent = '■ Arrêter la musique' + (T.playing ? ' (' + T.bpm + ' BPM)' : '');
+    };
+    T.on('change', updTb);
+    if (LP.backing) LP.backing.on('change', updTb);
+    tb.addEventListener('click', () => { T.stop(); if (LP.backing) LP.backing.pause(); });
 
     document.getElementById('btnSettings').addEventListener('click', openSettings);
     document.getElementById('btnFull').addEventListener('click', () => {

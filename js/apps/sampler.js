@@ -36,6 +36,111 @@
     return out;
   }
 
+  /* Estime le tempo (BPM) et la position du premier temps d'une musique */
+  function detectTempo(buf) {
+    const rate = buf.sampleRate, fps = 200, hop = Math.floor(rate / fps);
+    const c0 = buf.getChannelData(0), c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0;
+    const frames = Math.min(Math.floor(c0.length / hop), fps * 45);
+    if (frames < fps * 4) return null;
+    const env = new Float32Array(frames);
+    let prev = 0;
+    for (let f = 0; f < frames; f++) {
+      let s = 0;
+      const o = f * hop;
+      for (let i = 0; i < hop; i++) { const v = (c0[o + i] + c1[o + i]) * 0.5; s += v * v; }
+      const e = Math.sqrt(s / hop);
+      env[f] = Math.max(0, e - prev); prev = e;
+    }
+    const at = (x) => { const i = Math.floor(x), fr = x - i; return i + 1 < frames ? env[i] * (1 - fr) + env[i + 1] * fr : 0; };
+    const ac = (lag) => { let s = 0; for (let f = 0; f + lag + 1 < frames; f++) s += env[f] * at(f + lag); return s; };
+    const score = (bpm) => { const lag = fps * 60 / bpm; return ac(lag) + 0.5 * ac(lag * 2) + 0.25 * ac(lag / 2); };
+    let best = -1, bpm = 120;
+    for (let b = 70; b <= 180; b += 0.5) { const sc = score(b); if (sc > best) { best = sc; bpm = b; } }
+    for (let b = bpm - 0.5; b <= bpm + 0.5; b += 0.05) { const sc = score(b); if (sc > best) { best = sc; bpm = b; } }
+    if (best <= 0) return null;
+    const P = fps * 60 / bpm;
+    let bp = -1, ph0 = 0;
+    for (let ph = 0; ph < P; ph++) { let s = 0; for (let x = ph; x < frames; x += P) s += at(x); if (s > bp) { bp = s; ph0 = ph; } }
+    return { bpm: Math.round(bpm * 10) / 10, offset: ph0 / fps };
+  }
+
+  /* Musique de fond : tourne en boucle pendant qu'on joue les sons (gardée dans le navigateur) */
+  const BG = LP.backing = U.emitter({ buf: null, blob: null, name: '', playing: false, loop: U.store.get('bg.loop', true),
+    vol: U.store.get('bg.vol', 0.6), bpm: 120, offset: 0, startCtx: 0, startPos: 0, src: null, gain: null, taps: [] });
+  BG.detectTempo = detectTempo;
+  BG.position = function () {
+    if (!BG.buf) return 0;
+    const p = BG.playing ? BG.startPos + (A.ctx.currentTime - BG.startCtx) : BG.startPos, d = BG.buf.duration;
+    return BG.loop ? ((p % d) + d) % d : Math.min(p, d);
+  };
+  BG.play = function () {
+    if (!BG.buf || !A.ready() || BG.playing) return;
+    if (!BG.gain) { BG.gain = A.ctx.createGain(); BG.gain.gain.value = BG.vol; BG.gain.connect(A.bus); }
+    let pos = BG.position();
+    if (pos >= BG.buf.duration - 0.02) pos = 0;
+    const src = A.ctx.createBufferSource();
+    src.buffer = BG.buf; src.loop = BG.loop; src.connect(BG.gain);
+    src.start(0, pos);
+    BG.src = src; BG.startCtx = A.ctx.currentTime; BG.startPos = pos; BG.playing = true;
+    src.onended = () => { if (BG.src === src) { BG.src = null; BG.playing = false; BG.startPos = 0; BG.emit('change'); } };
+    BG.emit('change');
+  };
+  BG.pause = function () {
+    if (!BG.playing) return;
+    BG.startPos = BG.position();
+    const s = BG.src; BG.src = null; BG.playing = false;
+    try { s.stop(); } catch (e) { /* déjà arrêtée */ }
+    BG.emit('change');
+  };
+  BG.toggle = function () { if (BG.playing) BG.pause(); else BG.play(); };
+  BG.restart = function () { const was = BG.playing; BG.pause(); BG.startPos = 0; if (was) BG.play(); BG.emit('change'); };
+  BG.setVol = function (v) { BG.vol = U.clamp(v, 0, 1); U.store.set('bg.vol', BG.vol); if (BG.gain) BG.gain.gain.setTargetAtTime(BG.vol, A.ctx.currentTime, 0.02); BG.emit('vol'); };
+  BG.setLoop = function (v) { BG.loop = v; U.store.set('bg.loop', v); if (BG.src) BG.src.loop = v; };
+  BG.setTempo = function (bpm, offset) {
+    if (bpm) BG.bpm = U.clamp(Math.round(bpm * 10) / 10, 40, 220);
+    if (offset !== undefined) BG.offset = offset;
+    BG.save(); BG.emit('change');
+  };
+  BG.beatPhase = function () { const bd = 60 / BG.bpm; return ((((BG.position() - BG.offset) / bd) % 1) + 1) % 1; };
+  /* Heure audio de la prochaine double-croche (ou du prochain temps) de la musique */
+  BG.nextGrid = function (now, beat) {
+    const sd = 60 / BG.bpm / (beat ? 1 : 4), pos = BG.position();
+    const k = Math.ceil((pos - BG.offset) / sd - 0.02);
+    return now + Math.max(0, BG.offset + k * sd - pos);
+  };
+  BG.tap = function () {
+    if (!A.ready()) return;
+    const now = A.ctx.currentTime;
+    BG.taps = BG.taps.filter((t) => now - t < 3); BG.taps.push(now);
+    if (BG.taps.length >= 4) {
+      const iv = []; for (let i = 1; i < BG.taps.length; i++) iv.push(BG.taps[i] - BG.taps[i - 1]);
+      iv.sort((a, b) => a - b);
+      BG.bpm = Math.round(600 / iv[Math.floor(iv.length / 2)]) / 10;
+    }
+    if (BG.playing) { const bd = 60 / BG.bpm; BG.offset = ((BG.position() % bd) + bd) % bd; }
+    BG.save(); BG.emit('change');
+  };
+  BG.save = function () { if (BG.blob) LP.db.set('smp:bg', { blob: BG.blob, name: BG.name, bpm: BG.bpm, offset: BG.offset }).catch(() => {}); };
+  BG.loadBlob = async function (blob, name, bpm, offset) {
+    BG.pause();
+    const buf = await A.ctx.decodeAudioData(await blob.arrayBuffer());
+    BG.blob = blob; BG.name = name; BG.buf = buf; BG.startPos = 0;
+    if (bpm) { BG.bpm = bpm; BG.offset = offset || 0; BG.detected = false; }
+    else { const r = detectTempo(buf); BG.bpm = r ? r.bpm : 120; BG.offset = r ? r.offset : 0; BG.detected = !!r; }
+    BG.save(); BG.emit('change');
+  };
+  BG.restore = async function () {
+    if (BG.buf || BG.restoring || !A.ready()) return;
+    BG.restoring = true;
+    try { const rec = await LP.db.get('smp:bg'); if (rec && rec.blob) await BG.loadBlob(rec.blob, rec.name, rec.bpm, rec.offset); } catch (e) { /* rien de sauvegardé */ }
+    BG.restoring = false;
+  };
+  BG.remove = async function () {
+    BG.pause(); BG.buf = null; BG.blob = null; BG.name = '';
+    try { await LP.db.del('smp:bg'); } catch (e) { /* ignore */ }
+    BG.emit('change');
+  };
+
   LP.apps.register({
     id: 'sampler', name: 'Sampler 16 mots', cat: 'musique', emoji: '🤖', color: [0, 200, 255],
     short: 'Façon iDaft : 16 mots à jouer en rythme',
@@ -47,10 +152,13 @@
       ['Droite 2', 'Effet robot (vocodeur)'],
       ['Droite 3', 'Calé sur le tempo de la boîte à rythmes'],
       ['Droite 4', 'Lancer / arrêter un rythme d’accompagnement'],
+      ['Droite 5', 'Musique de fond : lecture / pause'],
+      ['Haut 2 / 3', 'Volume de la musique de fond − / +'],
+      ['Haut 7', 'Voyant des temps ; appuyer en rythme = régler le tempo (Tap)'],
       ['Droite 6 / 7 / 8', 'Jeu de sons : 16 mots / mots robots / mes sons'],
       ['Haut 1', 'Couper tous les sons']
     ],
-    buttons: { top: ['■'], right: ['●', '🤖', '⏱', '🥁', '', 'iDaft', 'Robot', 'Perso'] },
+    buttons: { top: ['■', 'Vol−', 'Vol+', '', '', '', 'Tap'], right: ['●', '🤖', '⏱', '🥁', '🎵', 'iDaft', 'Robot', 'Perso'] },
 
     start(api) {
       this.api = api;
@@ -61,9 +169,11 @@
       this.mono = U.store.get('smp.mono', false);
       this.recMode = false; this.recK = -1;
       this.playing = {}; this.spoken = null;
+      BG.restore();
       if (!this.hooked) {
         this.hooked = true;
-        A.on('start', () => this.decodePending());
+        A.on('start', () => { this.decodePending(); BG.restore(); });
+        BG.on('change', () => { if (LP.core.current === this) this.hud(); });
         if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => { if (LP.core.current === this) this.api.refresh(); };
       }
       this.load();
@@ -77,7 +187,7 @@
     loaded() { return this.buf.filter(Boolean).length; },
 
     hud() {
-      this.api.hud({ Jeu: this.pack().name, Sons: this.loaded() + ' / 16', Robot: this.robotOn ? 'oui' : 'non', 'Calé tempo': this.quant ? 'oui' : 'non' },
+      this.api.hud({ Jeu: this.pack().name, Sons: this.loaded() + ' / 16', Fond: BG.buf ? (BG.playing ? '▶ ' : '⏸ ') + BG.bpm + ' BPM' : '–', Robot: this.robotOn ? 'oui' : 'non', 'Calé tempo': this.quant ? 'oui' : 'non' },
         this.recMode ? '🎤 Mode enregistrement : maintiens une tuile, parle, puis relâche.' : this.loaded() ? '' : 'Pas encore de sons : les tuiles parlent avec une voix de synthèse. Dépose tes fichiers dans le panneau de droite.');
     },
 
@@ -151,7 +261,8 @@
       if (!A.ready()) return;
       const now = A.ctx.currentTime;
       let when = now;
-      if (this.quant && T.playing) { const sd = T.stepDur(); let tt = T._next; while (tt - sd >= now) tt -= sd; when = Math.max(now, tt); }
+      if (this.quant && BG.playing) when = BG.nextGrid(now);
+      else if (this.quant && T.playing) { const sd = T.stepDur(); let tt = T._next; while (tt - sd >= now) tt -= sd; when = Math.max(now, tt); }
       if (this.mono) Object.keys(this.playing).forEach((j) => this.stopPad(j, when)); else this.stopPad(k, when);
       const src = A.ctx.createBufferSource(); src.buffer = b;
       const g = A.ctx.createGain();
@@ -262,7 +373,9 @@
         T.drums.pattern = p; T.save();
         T.setBpm(this.pack().bpm);
       }
+      if (BG.playing) T.setBpm(BG.bpm);
       T.start();
+      if (BG.playing && A.ready()) T._next = BG.nextGrid(A.ctx.currentTime + 0.05, true);
     },
 
     /* ---------- Launchpad ---------- */
@@ -282,6 +395,9 @@
         fb.rect((k % 4) * 2, (k >> 2) * 2, 2, 2, c);
       }
       fb.button('top', 0, [110, 0, 0]);
+      if (BG.buf) { fb.button('top', 1, [60, 60, 60]); fb.button('top', 2, [60, 60, 60]); }
+      fb.button('top', 6, BG.playing && BG.beatPhase() < 0.15 ? [255, 255, 255] : [20, 20, 20]);
+      fb.button('right', 4, BG.playing ? [0, 255, 0] : BG.buf ? [0, 60, 0] : [5, 5, 5]);
       fb.button('right', 0, this.recMode ? [255, 0, 0] : [40, 0, 0]);
       fb.button('right', 1, this.robotOn ? [0, 255, 200] : [0, 35, 30]);
       fb.button('right', 2, this.quant ? [255, 255, 255] : [25, 25, 25]);
@@ -298,11 +414,14 @@
     onButton(side, i, down) {
       if (!down) return;
       if (side === 'top' && i === 0) this.stopAll();
+      if (side === 'top' && (i === 1 || i === 2)) BG.setVol(BG.vol + (i === 1 ? -0.1 : 0.1));
+      if (side === 'top' && i === 6) BG.tap();
       if (side !== 'right') return;
       if (i === 0) this.setRec(!this.recMode);
       else if (i === 1) this.setRobot(!this.robotOn);
       else if (i === 2) { this.quant = !this.quant; U.store.set('smp.quant', this.quant); this.api.refresh(); }
       else if (i === 3) this.toggleBeat();
+      else if (i === 4) { if (BG.buf) BG.toggle(); else this.api.toast('Ajoute d’abord une musique de fond dans le panneau de droite.'); }
       else if (i >= 5) this.setPack(i - 5);
       this.hud();
     },
@@ -324,6 +443,37 @@
       el.append(api.ui.toggle('Un seul son à la fois', this.mono, (v) => { this.mono = v; U.store.set('smp.mono', v); }));
 
       // Dépôt de fichiers
+      el.append(h('h3', null, 'Musique de fond'));
+      const bgIn = h('input', { type: 'file', accept: 'audio/*', onchange: async () => {
+        const f = bgIn.files[0]; if (!f) return;
+        if (!A.ready()) { api.toast('Active d’abord le son avec le bouton « Démarrer ».'); return; }
+        api.toast('Analyse du tempo…');
+        try { await BG.loadBlob(f, f.name); BG.play(); api.toast('🎵 ' + f.name + ' : ' + BG.bpm + ' BPM détectés.'); }
+        catch (e) { api.toast('Format audio non reconnu.'); }
+        api.refresh();
+      } });
+      if (!BG.buf) {
+        el.append(api.ui.note('Ajoute une musique (par exemple une version instrumentale) : elle tourne en boucle pendant que tu joues les sons, et les sons se calent sur ses temps.'));
+        el.append(api.ui.row('Choisir une musique', bgIn));
+      } else {
+        el.append(h('p', { class: 'src-now' }, '🎵 ', h('b', null, BG.name)));
+        el.append(api.ui.buttons([
+          { label: BG.playing ? '⏸ Pause' : '▶ Lecture', onClick: () => { BG.toggle(); api.refresh(); } },
+          { label: '⏮ Début', cls: 'ghost', onClick: () => BG.restart() },
+          { label: '✕ Retirer', cls: 'ghost', onClick: async () => { await BG.remove(); api.refresh(); } }
+        ]));
+        el.append(api.ui.range('Volume de la musique', 0, 1, 0.05, BG.vol, (v) => BG.setVol(v), (v) => Math.round(v * 100) + ' %'));
+        el.append(api.ui.toggle('Boucler', BG.loop, (v) => BG.setLoop(v)));
+        const bpmIn = h('input', { type: 'number', min: 40, max: 220, step: 0.1, value: BG.bpm, style: { width: '90px' }, onchange: () => BG.setTempo(parseFloat(bpmIn.value)) });
+        el.append(api.ui.row('Tempo (BPM)' + (BG.detected ? ' — détecté automatiquement' : ''), h('div', { class: 'btns' }, bpmIn,
+          h('button', { onclick: () => { BG.tap(); bpmIn.value = BG.bpm; } }, '👆 Tap (tape sur les temps)'),
+          h('button', { class: 'ghost', onclick: () => { BG.setTempo(BG.bpm * 2); api.refresh(); } }, '×2'),
+          h('button', { class: 'ghost', onclick: () => { BG.setTempo(BG.bpm / 2); api.refresh(); } }, '÷2'))));
+        el.append(api.ui.range('Calage des temps', 0, Math.round(60 / BG.bpm * 100) / 100, 0.01, Math.round(BG.offset * 100) / 100, (v) => BG.setTempo(null, v), (v) => Math.round(v * 1000) + ' ms'));
+        el.append(api.ui.note('Le bouton rond en haut (7e) clignote sur chaque temps : s’il n’est pas en rythme, tape 4 fois sur « Tap » (ou sur ce bouton du Launchpad) en suivant la musique.'));
+        el.append(api.ui.row('Changer de musique', bgIn));
+      }
+
       el.append(h('h3', null, 'Mes sons'));
       const files = h('input', { type: 'file', accept: 'audio/*', multiple: true, onchange: () => this.assignFiles(files.files) });
       const folder = h('input', { type: 'file', webkitdirectory: true, multiple: true, onchange: () => this.assignFiles(folder.files) });

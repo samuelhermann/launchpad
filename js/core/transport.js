@@ -71,7 +71,7 @@
   };
 
   T.setBpm = function (b) {
-    T.bpm = U.clamp(Math.round(b), 50, 200);
+    T.bpm = U.clamp(Math.round(b * 10) / 10, 40, 220);
     if (A.ready()) A.setDelayTime(T.stepDur() * 3);
     T.save(); T.emit('change');
   };
