@@ -23,7 +23,7 @@
   });
 
   const todayKey = () => new Date().toISOString().slice(0, 10);
-  P.duration = (ph) => Math.max(0.05, P.cfg[ph || P.phase]) * 60000;
+  P.duration = (ph) => Math.max(0.01, P.cfg[ph || P.phase]) * 60000;
   P.left = () => (P.running ? Math.max(0, P.endAt - Date.now()) : P.remaining);
   P.fraction = () => P.left() / P.duration();
 

@@ -93,16 +93,21 @@ const check = (cond, msg) => { if (cond) console.log('  ✓ ' + msg); else { fai
   await sleep(600);
   await page.screenshot({ path: path.join(OUT, '01-menu.png') });
 
-  const apps = await page.evaluate(() => LP.apps.list.filter((a) => !a.hidden).map((a) => a.id));
+  const apps = await page.evaluate(() => {
+    const cats = LP.CATS.map((c) => c[0]);
+    return LP.apps.list.filter((a) => !a.hidden).map((a) => ({ id: a.id, tab: cats.indexOf(a.cat), k: LP.apps.list.filter((b) => !b.hidden && b.cat === a.cat).indexOf(a) }));
+  });
   const note = (x, y) => (8 - y) * 10 + x + 1;
   const pad = async (x, y, v = 100) => { await page.evaluate(([n, v]) => { window.__press(0x90, n, v); }, [note(x, y), v]); await sleep(30); await page.evaluate((n) => window.__press(0x90, n, 0), note(x, y)); };
   const btn = async (cc) => { await page.evaluate((cc) => { window.__press(0xB0, cc, 127); window.__press(0xB0, cc, 0); }, cc); };
 
-  for (let k = 0; k < apps.length; k++) {
-    const id = apps[k];
-    // Lancer depuis le menu via la tuile 2x2 correspondante (comme sur le vrai Launchpad)
+  for (let n = 0; n < apps.length; n++) {
+    const { id, tab, k } = apps[n];
+    // Lancer depuis le menu : onglet (boutons du haut) puis tuile 2x2, comme sur le vrai Launchpad
     await btn(98);
     await sleep(100);
+    await btn(91 + tab);
+    await sleep(60);
     await pad((k % 4) * 2, Math.floor(k / 4) * 2);
     await sleep(150);
     const cur = await page.evaluate(() => LP.core.current.id);
@@ -110,8 +115,8 @@ const check = (cond, msg) => { if (cond) console.log('  ✓ ' + msg); else { fai
     for (let i = 0; i < 6; i++) { await pad(i % 8, (i * 3) % 8, 60 + i * 10); await sleep(60); }
     for (const cc of [91, 92, 93, 94, 89, 79]) { await btn(cc); await sleep(40); }
     await sleep(700);
-    await page.screenshot({ path: path.join(OUT, String(k + 2).padStart(2, '0') + '-' + id + '.png') });
-    check(cur === id, `tuile ${k} → ${id} (actuel : ${cur})`);
+    await page.screenshot({ path: path.join(OUT, String(n + 2).padStart(2, '0') + '-' + id + '.png') });
+    check(cur === id, `onglet ${tab} tuile ${k} → ${id} (actuel : ${cur})`);
   }
 
   /* 3. Logique de jeu */
@@ -177,6 +182,96 @@ const check = (cond, msg) => { if (cond) console.log('  ✓ ' + msg); else { fai
   await page.evaluate(() => LP.launchpad.leave());
   const exitMsg = await page.evaluate((n) => window.__sent.slice(n).map((s) => s.data), before);
   check(exitMsg.some((d) => d[6] === 0x0E && d[7] === 0x00), 'Sortie du mode Programmer envoyée');
+
+  /* 7. Nouvelles applis : Pomodoro, Visualiseur, Stream Deck (Hammerspoon + OBS), Sampler, Animations */
+  console.log('Nouvelles applis :');
+  const extra = await page.evaluate(async () => {
+    const out = {};
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    // SHA-256 (authentification OBS)
+    out.sha = LP.sha256('abc');
+    // Pomodoro accéléré : 1,2 s de travail -> passe en pause
+    const P = LP.pomodoro;
+    P.cfg.work = 0.02; P.cfg.auto = false; P.count = 0;
+    P.setPhase('work'); P.start();
+    await wait(1700);
+    out.pomo = { phase: P.phase, count: P.count };
+    P.cfg.work = 25; P.setPhase('work');
+    // Visualiseur : une note de synthé doit faire bouger les bandes
+    LP.core.launch('visualizer');
+    LP.audioin.useApp();
+    LP.audio.play(48, 1.2, 1, 'pad');
+    let maxLevel = 0;
+    for (let i = 0; i < 20; i++) { await wait(50); maxLevel = Math.max(maxLevel, LP.audioin.level); }
+    out.vizLevel = maxLevel;
+    // Stream Deck -> Hammerspoon : on intercepte la requête HTTP
+    LP.core.launch('streamdeck');
+    const sd = LP.core.current;
+    const sent = [];
+    const realFetch = window.fetch;
+    window.fetch = async (url, opt) => { sent.push({ url, body: JSON.parse(opt.body) }); return new Response('ok', { status: 200 }); };
+    LP.hammer.enable(true);
+    await sd.run({ type: 'keys', mods: ['cmd', 'shift'], key: '4' });
+    await sd.run({ type: 'app', app: 'Spotify' });
+    window.fetch = realFetch;
+    out.hs = sent.map((s) => ({ url: s.url, type: s.body.type, keycode: s.body.keycode, mods: s.body.mods, app: s.body.app, tokenOk: s.body.token === LP.hammer.token }));
+    // Stream Deck -> OBS : faux serveur WebSocket
+    const RealWS = window.WebSocket;
+    const reqs = [];
+    window.WebSocket = class {
+      constructor() { setTimeout(() => this.onmessage({ data: JSON.stringify({ op: 0, d: { rpcVersion: 1, authentication: { salt: 'SEL123', challenge: 'DEFI456' } } }) }), 10); }
+      send(raw) {
+        const m = JSON.parse(raw);
+        if (m.op === 1) { out.obsAuth = m.d.authentication; setTimeout(() => this.onmessage({ data: JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } }) }), 5); }
+        if (m.op === 6) {
+          reqs.push(m.d);
+          const data = { GetSceneList: { scenes: [{ sceneName: 'Pause' }, { sceneName: 'Jeu' }], currentProgramSceneName: 'Jeu' }, GetRecordStatus: { outputActive: false }, GetStreamStatus: { outputActive: true }, GetInputList: { inputs: [{ inputName: 'Mic/Aux' }] }, GetInputMute: { inputMuted: true } }[m.d.requestType] || {};
+          setTimeout(() => this.onmessage({ data: JSON.stringify({ op: 7, d: { requestId: m.d.requestId, requestType: m.d.requestType, requestStatus: { result: true, code: 100 }, responseData: data } }) }), 5);
+        }
+      }
+      close() {}
+    };
+    LP.obs.configure('ws://127.0.0.1:4455', 'motdepasse');
+    LP.obs.connect();
+    await wait(400);
+    await sd.run({ type: 'obsScene', scene: 'Pause' });
+    out.obs = { status: LP.obs.status, scenes: LP.obs.scenes, current: LP.obs.current, streaming: LP.obs.streaming, muted: LP.obs.muted['Mic/Aux'], last: reqs[reqs.length - 1] };
+    LP.obs.disconnect();
+    window.WebSocket = RealWS;
+    // Sampler : un fichier « harder.wav » doit se ranger sous le mot « Harder »
+    LP.core.launch('sampler');
+    const smp = LP.core.current;
+    smp.setPack(0);
+    await wait(100);
+    const rate = 22050, n = 4410, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.sin(i / 10) * 12000, true);
+    await smp.assignFiles([new File([buf], 'Harder.wav', { type: 'audio/wav' })]);
+    smp.play(4);
+    out.sampler = { harder: !!smp.buf[4], others: smp.buf.filter(Boolean).length, playing: !!smp.playing[4] };
+    await smp.clearSample(4);
+    // Animations : chaque animation tourne sans erreur
+    LP.core.launch('demo');
+    const demo = LP.core.current;
+    for (let i = 0; i < demo.ANIMS.length; i++) { demo.setAnim(i); await wait(120); }
+    out.anims = demo.ANIMS.length;
+    LP.core.launch('menu');
+    return out;
+  });
+  check(extra.sha === 'ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=', 'SHA-256 correct (authentification OBS)');
+  check(extra.pomo.phase === 'short' && extra.pomo.count === 1, `Pomodoro : fin du travail → ${extra.pomo.phase}, ${extra.pomo.count} séance`);
+  check(extra.vizLevel > 0.05, 'Visualiseur : niveau sonore détecté (' + extra.vizLevel.toFixed(2) + ')');
+  const hs = extra.hs;
+  check(hs.length === 2 && hs[0].url === 'http://127.0.0.1:8765/' && hs[0].type === 'keys' && hs[0].keycode === 21 && hs[0].mods.join() === 'cmd,shift' && hs[1].app === 'Spotify' && hs.every((x) => x.tokenOk),
+    'Stream Deck → Hammerspoon : ⌘⇧4 (touche 21) et « Spotify » envoyés avec le jeton');
+  check(extra.obsAuth === 'rCfmLZBfVZpuw9Uii5Z926Z7fcqoL+FP143fWtPbq7I=', 'OBS : authentification calculée correctement');
+  check(extra.obs.status === 'ok' && extra.obs.scenes.join() === 'Jeu,Pause' && extra.obs.current === 'Jeu' && extra.obs.streaming && extra.obs.muted === true,
+    'OBS : connexion, scènes, état du live et du micro récupérés');
+  check(extra.obs.last && extra.obs.last.requestType === 'SetCurrentProgramScene' && extra.obs.last.requestData.sceneName === 'Pause', 'OBS : le bouton change bien de scène');
+  check(extra.sampler.harder && extra.sampler.others === 1 && extra.sampler.playing, 'Sampler : « Harder.wav » rangé sous « Harder » et joué');
+  check(extra.anims === 12, 'Animations : les 12 animations tournent');
 
   check(errors.length === 0, 'Aucune erreur JavaScript' + (errors.length ? ' : ' + errors.slice(0, 5).join(' | ') : ''));
 

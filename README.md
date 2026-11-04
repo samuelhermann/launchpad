@@ -44,7 +44,7 @@ puis ouvre http://localhost:8000 dans Chrome.
 
 ## 🕹️ Commandes générales
 
-- **Accueil** : chaque appli est une tuile 2×2 sur la grille. Appuie dessus pour la lancer.
+- **Accueil** : 3 onglets avec les 3 premiers boutons du haut (**Jeux**, **Musique**, **Outils**), puis une tuile 2×2 pour lancer l'appli.
 - **Bouton ⌂** (en haut à droite du Launchpad) ou **Échap** : revenir à l'accueil.
 - **Sur l'accueil, colonne de droite** : luminosité des LED.
 - Les boutons du haut et de droite sont expliqués à l'écran, dans chaque appli : leur nom est écrit sur le Launchpad virtuel.
@@ -71,9 +71,35 @@ Les records sont sauvegardés dans le navigateur.
 | 🎹 **Clavier / synthé** | La grille devient un clavier, dans la gamme de ton choix (impossible de jouer faux). 8 sons, un mode accords, et la vélocité sur X et Pro. |
 | 🎼 **Séquenceur mélodique** | Dessine une mélodie et une ligne de basse qui tournent en boucle, calées sur la boîte à rythmes. |
 | ✨ **Light show** | 8 animations (spectre, ondes, pluie, plasma, feux d'artifice, étoiles, texte défilant) qui réagissent aux sons de l'appli, au micro ou à un fichier MP3. |
-| 🎨 **Peinture & test** | Dessine sur la grille. Affiche aussi chaque message MIDI reçu, pratique pour tester les pads. |
+| 🎶 **Visualiseur** | 8 visualisations (égaliseur, spectrogramme, oscilloscope, VU-mètre stéréo…) de la musique d'un **onglet Chrome** (YouTube, Spotify Web, Deezer…), de l'**appli Spotify / Musique** (via BlackHole), du micro ou d'un fichier. Le gain est automatique et le tempo estimé. |
+| 🤖 **Sampler 16 mots** | Inspiré d'iDaft : 16 tuiles qui jouent chacune un mot. Tu déposes **tes propres sons** ou tu enregistres ta voix, avec un **effet robot** (vocodeur). Le jeu peut être calé sur le tempo, avec un rythme d'accompagnement. Sans son, les tuiles parlent avec une voix de synthèse. |
 
-💡 **Astuce** : la boîte à rythmes et le séquenceur continuent de jouer quand tu changes d'appli. Lance un rythme, puis improvise au clavier, ou ouvre le light show !
+## 🧰 Outils
+
+| Appli | Principe |
+|---|---|
+| 🎨 **Peinture & test** | Dessine sur la grille. Affiche aussi chaque message MIDI reçu, pratique pour tester les pads. |
+| 🍅 **Pomodoro** | 25 min de travail, 5 min de pause, une pause longue toutes les 4 séances (tout est réglable). La grille est un sablier. Il **continue en fond** : le temps restant s'affiche dans l'onglet et en haut de la page, avec une notification Mac en option. |
+| 🎛️ **Stream Deck** | 8 pages de 64 boutons. Un bouton peut **ouvrir un site**, lancer un **raccourci Mac** (touches, applis, lecture/volume, texte, Raccourcis Apple) ou piloter **OBS** (scène, micro, enregistrement, live). Les boutons OBS s'allument selon l'état. |
+| 📺 **Animations** | 12 animations : pluie numérique façon Matrix, scanner K2000, voix de KITT (réagit au micro), convecteur temporel, hyperespace, gyrophare, radar, piste disco, feu, jeu de la vie, cœur, horloge. Avec un mode diaporama et des sons en option. |
+
+### Installer les connexions du Stream Deck
+- **Raccourcis Mac** : installe [Hammerspoon](https://www.hammerspoon.org) (gratuit) et autorise-le dans *Réglages Système → Confidentialité et sécurité → Accessibilité*. Copie le code donné par l'appli dans *Hammerspoon → Open Config*, puis fais *Reload Config*. Un jeton secret empêche les autres sites de déclencher tes raccourcis.
+- **OBS** : dans OBS, va dans *Outils → Paramètres du serveur WebSocket* et active-le. Colle le mot de passe dans l'appli, puis clique sur *Connecter*.
+- **Sites web** : sans Hammerspoon, autorise les pop-ups pour la page, avec l'icône qui apparaît dans la barre d'adresse.
+
+### Visualiser Spotify / Musique (appli Mac)
+1. Installe [BlackHole 2ch](https://existential.audio/blackhole/) (gratuit).
+2. Dans *Configuration audio et MIDI*, crée un **périphérique à sorties multiples** avec tes haut-parleurs + BlackHole.
+3. Choisis ce périphérique comme sortie dans *Réglages Système → Son*.
+4. Dans le Visualiseur, clique sur **Spotify / Musique (BlackHole)**.
+
+Pour YouTube ou Spotify Web, rien à installer : clique sur **Capturer un onglet Chrome**, puis coche « Partager aussi l'audio de l'onglet ».
+
+### Sons du sampler et droits d'auteur
+Aucun son protégé n'est fourni. Les sons que tu déposes restent **uniquement dans ton navigateur**. Pour un usage privé, découpe les mots dans ta propre copie d'un morceau (avec Audacity par exemple). Range les fichiers dans un dossier `sons-prives/` à la racine du projet : il est ignoré par Git, donc jamais publié. Charge-le ensuite avec « Charger un dossier entier ». Nomme les fichiers comme les mots (`work_it.wav`…) et ils se rangent tout seuls.
+
+💡 **Astuce** : la boîte à rythmes, le séquenceur et le Pomodoro continuent quand tu changes d'appli. Lance un rythme, puis improvise au clavier, ou ouvre le light show !
 
 ## 🛠️ Dépannage
 

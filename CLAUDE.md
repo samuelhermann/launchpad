@@ -32,6 +32,9 @@ Pas de modules ES ni de bundler : tout est attaché à `window.LP` pour fonction
 | `js/core/display.js` | `LP.FrameBuffer` (grille 8×8 + boutons `top/right/left/bottom/bottom2` + `logo`) et le Launchpad virtuel cliquable |
 | `js/core/audio.js` | `LP.audio` : batterie synthétisée, synthé polyphonique (`noteOn/noteOff/play`, 8 presets), `sfx` |
 | `js/core/transport.js` | `LP.music` (gammes, tonalité partagée), `LP.transport` (horloge des séquenceurs, motifs sauvegardés) |
+| `js/core/audioin.js` | `LP.audioin` : sources audio partagées (sons de l'appli, onglet Chrome via `getDisplayMedia`, BlackHole/micro via `getUserMedia`, fichier) + analyse (8 bandes avec gain auto, battements/tempo, VU stéréo, forme d'onde). `AI.panel()` = panneau de choix de source |
+| `js/core/bridges.js` | `LP.hammer` (pont HTTP local vers Hammerspoon, jeton secret, code Lua généré par `HS.lua()`), `LP.obs` (client OBS WebSocket v5 avec authentification SHA-256) |
+| `js/core/store-db.js` | `LP.db` : stockage IndexedDB (sons du sampler) |
 | `js/core/app.js` | `LP.apps.register`, `LP.core` (boucle ~60 Hz dans un Worker, routage des entrées, HUD, panneau), `LP.ui` (contrôles) |
 | `js/main.js` | Démarrage, écran d'accueil, fenêtre Réglages |
 | `js/apps/*.js` | Une appli par fichier |
@@ -54,6 +57,9 @@ LP.apps.register({
 });
 ```
 - Le bouton `top` n°7 (en haut à droite, ⌂) est réservé : retour à l'accueil.
+- L'accueil a 3 onglets (`LP.CATS` : jeu / musique / outil), 16 tuiles maximum par onglet.
+- Tâche qui doit tourner même quand l'appli n'est pas affichée : `LP.core.addBackground(fn)` (exemple : `LP.pomodoro`).
+- **MK2 : peu de LED par seconde.** Conçois les animations avec des paliers (hauteurs entières, couleurs par niveaux) pour limiter les changements.
 - `api` : `hud(champs, message)`, `text(str, couleur, {onDone})` (texte défilant qui bloque la grille), `best(clé, valeur, plusPetitMeilleur)`, `refresh()`, `vel(v)`, `toast(msg)`.
 - **Ne jamais appeler une méthode `color`** dans une appli : elle écraserait la propriété `color` (la couleur de l'appli dans la liste). Ce bug a déjà eu lieu.
 
@@ -67,6 +73,9 @@ Les pads sont numérotés `10 × ligne + colonne`, avec la ligne 1 en bas (11 = 
 | Mini MK3 | 0D | `0E 01` | idem | 0–127 | CC 91–98 | CC 89…19 |
 | Pro (2015) | 10 | `21 01` puis `2C 03` | `0B` + `[led r g b]…` | 0–63 | CC 91–98 | CC 89…19 |
 | **MK2** | 18 | `22 00` (disposition Session) | `0B` + `[led r g b]…` | 0–63 | **CC 104–111** | **notes** 89…19 |
+
+## Droits d'auteur
+Le dépôt est **public** : n'y ajoute jamais de sons protégés (ex. voix de Daft Punk). Le sampler charge les sons de l'utilisateur dans IndexedDB ; le dossier `sons-prives/` est ignoré par Git pour ses fichiers privés.
 
 ## Historique des problèmes
 - **Lumières figées sur le MK2 en changeant de jeu** : le MK2 saturait (~2 800 LED/s envoyées). Corrigé par le plafond d'envoi (profil « Prudent » automatique pour MK2 et Pro 2015), l'auto-réparation et un redessin complet à chaque changement d'appli. L'utilisateur a constaté que **débrancher / rebrancher le MK2 le débloque** (ça confirme la saturation de son tampon interne ; la reconnexion à chaud est gérée par `onstatechange` → `scan()`). Bouton « Reconnecter le Launchpad » dans Réglages (`LP.launchpad.reconnect()`). À surveiller : si ça se reproduit avec la v2, baisser le débit (`setRate('slow')`) et mesurer `LP.launchpad.stats`.
